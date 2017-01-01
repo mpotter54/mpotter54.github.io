@@ -1,0 +1,35 @@
+---
+title: Baltimore Area Bridges Leaflet Map
+author: "Mark Potter"
+date: "January 1, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(leaflet)
+```
+```{r map, echo=FALSE}
+mainDir <- "C:/DDP/Assignment1"
+setwd(mainDir)
+fileBridges <- "BaltimoreBridges.csv"
+bridges <- read.csv(file=fileBridges, head=TRUE, sep=",",na.strings=c('#DIV/0', '', 'NA'))
+bridgesLatLong <- data.frame(lat = bridges$LATITUDE, lng = bridges$LONGITUDE)
+bridges$longName <- paste("<table>",
+                          "<tr><td>ROAD&nbsp;&nbsp;&nbsp;</td>", "<td><b>", bridges$ROAD, "</b></td></tr>",
+                          "<tr><td>OPEN&nbsp;CODE&nbsp;&nbsp;&nbsp;</td>", "<td><b>", bridges$OPEN_CODE, "</b></td></tr>", 
+                          "<tr><td>OPEN&nbsp;DESC&nbsp;&nbsp;&nbsp;</td>", "<td><b>", bridges$OPEN_DESC, "</b></td></tr>", 
+                          "<tr><td>YEAR&nbsp;BUILT&nbsp;&nbsp;&nbsp;</td>", "<td><b>", as.character(bridges$YEAR_BUILT),                                 "</b></td></tr>", sep="")
+bridgesLatLong %>% leaflet(width=1000,height=768) %>% 
+                   addTiles() %>% 
+                   addCircleMarkers(weight=1, 
+                                    popup=bridges$longName,
+                                    radius = ~ifelse(bridges$OPEN_CODE == "A", 7, 15),
+                                    color = bridges$OPEN_COL) %>%
+                   addLegend(labels = c("Open(A)", "Open, Posting Recommended(B)", "New(G)", "Posted for Load(P)"), 
+                             colors = c("GREEN", "TURQUOISE", "BLUE", "RED"))
+```
+
+
+## Data Source ( https://catalog.data.gov/organization/dot-gov )
+
