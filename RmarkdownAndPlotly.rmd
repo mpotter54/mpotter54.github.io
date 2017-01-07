@@ -1,0 +1,202 @@
+---
+title: R Markdown Presentation & Plotly
+subtitle: Use the PgDn and PgUp Keys to Navigate
+author: Mark Potter
+date: January 7, 2017
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(plotly)
+###############################################################################
+# Function to pull in stick data from Yahoo Finance.
+# Should work for daily as well as intraday data
+# Note that intraday data is at 1 min frequency
+# Should work for any stock (India or international)
+# Frequency = d, w, m
+# Intraday frequency is 1 min
+# Arguments:
+#   STOCK = Ticker symbol of stock (as per Yahoo)
+#   start.date = Window start date
+#   freq = Frequency of daily / weekly / monthly data
+#   intraday = TRUE if intraday data is needed else FALSE
+#   intraLength = Window length for intraday data ("1d" for one day etc)
+
+# Function works thus:
+#   1. Creates the URL that can be used to pull in data by pasting together
+#      relevant data like ticker, date, month, year and freq
+#   2. Pulls in data from URL and cleans if intraday data is requested
+#   3. R warnings and errors are suppressed and custom error codes are displayed
+#   4. Returns a data frame containing dates, open, close, high, low, volume columns
+# NOTE: For intraday data, the dates returned are in UNIX format
+###############################################################################
+
+GetYahooData <- function(stock = "%5ENSEI",
+                         start.date = "2010-01-01",
+                         freq = "d",
+                         intraday = FALSE,
+                         intraLength = "5d") {
+
+  # Set Options ---------------------------------------------------------------
+  options(show.error.messages = F)
+  options(warn = -1)
+
+  errorFlag = 0
+
+  # Dates ---------------------------------------------------------------------
+  start.date = as.Date(start.date)   #  Format should be "YYYY-mm-dd"
+  end.date = Sys.Date()              #  Auto current date
+
+  # If not Intraday -----------------------------------------------------------
+  if (intraday == FALSE) {
+
+    # Create URL
+    a = as.numeric(format(start.date, "%d"))
+    b = as.numeric(format(start.date, "%m"))
+    c = as.numeric(format(start.date, "%Y"))
+
+    d = as.numeric(format(end.date, "%d"))
+    e = as.numeric(format(end.date, "%m"))
+    f = as.numeric(format(end.date, "%Y"))
+
+    part1 = 'http://real-chart.finance.yahoo.com/table.csv?s='
+    part2 = paste0('&a=',a,"&",
+                   'b=',b,"&",
+                   'c=',c,"&",
+                   'd=',d,"&",
+                   'e=',e,"&",
+                   'f=',f,"&",
+                   'g=',freq,"&",
+                   "ignore=.csv")
+
+    URL = paste0(part1, stock, part2)
+
+    # Simply read as csv from URL
+    dat = try(read.csv(URL, stringsAsFactors = F), silent = T)
+
+    # If Error, flag it
+    if (class(dat) == "try-error") {
+      errorFlag = 1
+    }
+  }
+
+  # If Intraday ---------------------------------------------------------------
+  if (intraday == TRUE) {
+
+    # Create URL
+    part1 = "http://chartapi.finance.yahoo.com/instrument/1.0/"
+    part2 = paste0("/chartdata;type=quote;range=", intraLength, "/csv/")
+
+    URL = paste0(part1, stock, part2)
+
+    # Read each line separately as text
+    dat = readLines(URL)
+
+    # If no error, run code
+    if (length(dat) > 4) {
+
+      # Get the column names
+      n = as.numeric(unlist(strsplit(intraLength, "d")))
+      n = ifelse(n == 1, 12, 12 + n)
+      col.names = (unlist(strsplit(dat[n], ":"))[2])
+      col.names = unlist(strsplit(col.names, ","))
+
+      # Remove the first few unnecessary rows
+      dat = dat[(n + 6):length(dat)]
+
+      # Convert the vector of strings into a vector of numbers
+      dat = as.numeric(unlist(strsplit(dat, ",")))
+
+      # Create a matrix and add column names
+      dat = matrix(dat, ncol = 6, byrow = T)
+      colnames(dat) = col.names
+
+      # Add Row Names
+      dat = data.frame(Date = dat[,1], dat[,-1])
+
+    }
+
+    else {
+
+      # If error flag it
+      errorFlag = 1
+    }
+  }
+
+  # Print errors etc ----------------------------------------------------------
+  if (errorFlag == 1) {
+
+    print("Data pull unsuccessful. Check Stock Code...")
+    dat = NULL
+  }
+
+  else {
+
+    # print("Data pull successful...")
+  }
+
+  # Fix options back to original ----------------------------------------------
+  options(show.error.messages = T)
+  options(warn = 1)
+
+  # Return data ---------------------------------------------------------------
+  return(dat)
+
+}
+```
+
+## Introduction
+
+This presentation will plot the major US Stock Market price changes since the 2016 US Presidential Election on November 9, 2016.  GetYahooData R function taken from 
+https://github.com/royr2/StockPriceAnalytics/blob/master/support/Yahoo%20Stock%20Data%20Pull.R
+
+## Pull the major averages
+
+```{r get data, echo = TRUE}
+# S & P 500
+SP500 <- GetYahooData("^GSPC", "2016-11-9")
+# Dow Jones Industrials
+DJI <- GetYahooData("^DJI", "2016-11-9")
+# NASDAQ Composite
+IXIC <- GetYahooData("^IXIC", "2016-11-9")
+# Wilshire 5000 Total Market Index
+W5000 <- GetYahooData("^W5000", "2016-11-9")
+```
+## Reformat the data
+
+```{r format data, echo = TRUE}
+# reformat data for plot_ly
+stocks <- data.frame(Date = SP500$Date, 
+                     SP500 = round(SP500$Adj.Close, 2), 
+                     DJI = round(DJI$Adj.Close, 2), 
+                     IXIC = round(IXIC$Adj.Close, 2), 
+                     W5000 = round(W5000$Adj.Close, 2))
+```
+
+## Plot Major averages
+
+```{r plot data, echo = FALSE, warning = FALSE}
+p <- plot_ly(stocks,
+             x = stocks$Date, 
+             y = stocks$SP500, 
+             type = "scatter", mode = "lines", 
+             name = "S&P 500") %>%
+add_trace(stocks,
+          y = stocks$IXIC,
+          type = "scatter", mode = "lines", 
+          name = "Nasdaq Composite") %>%
+add_trace(stocks,
+          y = stocks$DJI,
+          type = "scatter", mode = "lines", 
+          name = "Dow Jones") %>%
+add_trace(stocks,
+          y = stocks$W5000,
+          type = "scatter", mode = "lines", 
+          name = "Wilshire") %>%
+layout(title = "Major Averages Closing Prices Since 11/9/2016", 
+       yaxis = list(title = "Log Price", type = "log"),
+       xaxis = list(title = "", ticklen = 0))
+p
+```
+
