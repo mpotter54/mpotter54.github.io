@@ -3,7 +3,10 @@ title: R Markdown Presentation & Plotly
 subtitle: Use the PgDn and PgUp Keys to Navigate
 author: Mark Potter
 date: January 7, 2017
-output: ioslides_presentation
+output: 
+        ioslides_presentation:
+                widescreen: true
+                smaller: true
 ---
 
 ```{r setup, include=FALSE}
